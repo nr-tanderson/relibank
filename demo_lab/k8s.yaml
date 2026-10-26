@@ -1,0 +1,186 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: relibank-lab
+  labels:
+    owner: TANDERSON
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mock-gateway
+  namespace: relibank-lab
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: mock-gateway
+  template:
+    metadata:
+      labels:
+        app: mock-gateway
+    spec:
+      containers:
+        - name: gateway
+          image: ${LAB_IMAGE}
+          command: [sh, -c]
+          args:
+            - 'if [ "$NEW_RELIC_ENABLED" = true ]; then exec newrelic-admin run-program uvicorn demo_lab.gateway:app --host 0.0.0.0 --port 8080; else exec uvicorn demo_lab.gateway:app --host 0.0.0.0 --port 8080; fi'
+          ports:
+            - containerPort: 8080
+          env:
+            - name: NEW_RELIC_ENABLED
+              value: "${MONITORING_ENABLED}"
+            - name: NEW_RELIC_LICENSE_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: newrelic-license
+                  key: license-key
+                  optional: true
+            - name: NEW_RELIC_APP_NAME
+              value: ReliBank Lab - Mock Gateway
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 256Mi
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: 8080
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mock-gateway
+  namespace: relibank-lab
+spec:
+  selector:
+    app: mock-gateway
+  ports:
+    - port: 8080
+      targetPort: 8080
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: payment-api
+  namespace: relibank-lab
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: payment-api
+  template:
+    metadata:
+      labels:
+        app: payment-api
+    spec:
+      containers:
+        - name: api
+          image: ${LAB_IMAGE}
+          command: [sh, -c]
+          args:
+            - 'if [ "$NEW_RELIC_ENABLED" = true ]; then exec newrelic-admin run-program uvicorn bill_pay.payment_lab_api:app --host 0.0.0.0 --port 8080; else exec uvicorn bill_pay.payment_lab_api:app --host 0.0.0.0 --port 8080; fi'
+          ports:
+            - containerPort: 8080
+          env:
+            - name: NEW_RELIC_ENABLED
+              value: "${MONITORING_ENABLED}"
+            - name: PAYMENT_GATEWAY_URL
+              value: http://mock-gateway:8080
+            - name: LAB_GENERATION
+              value: ${LAB_GENERATION}
+            - name: IMAGE_COMMIT
+              value: ${IMAGE_COMMIT}
+            - name: NEW_RELIC_APP_NAME
+              value: ReliBank Lab - Payments
+            - name: NEW_RELIC_LICENSE_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: newrelic-license
+                  key: license-key
+                  optional: true
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 256Mi
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: 8080
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: payment-api
+  namespace: relibank-lab
+  annotations:
+    service.beta.kubernetes.io/azure-additional-resource-tags: OWNER=TANDERSON,PROJECT=nr-azure-demo-opentelemetry
+spec:
+  type: LoadBalancer
+  selector:
+    app: payment-api
+  ports:
+    - port: 80
+      targetPort: 8080
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: payment-failure-window
+  namespace: relibank-lab
+spec:
+  schedule: '0 */3 * * *'
+  suspend: true
+  concurrencyPolicy: Forbid
+  startingDeadlineSeconds: 120
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 1
+  jobTemplate:
+    metadata:
+      labels:
+        lab-job: 'true'
+    spec:
+      activeDeadlineSeconds: 60
+      backoffLimit: 0
+      template:
+        spec:
+          restartPolicy: Never
+          containers:
+            - name: trigger
+              image: curlimages/curl:8.12.1
+              args: [--fail-with-body, --max-time, '10', -X, POST, 'http://mock-gateway:8080/failure-window', -H, 'Content-Type: application/json', -d, '{"seconds":600}']
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: payment-traffic
+  namespace: relibank-lab
+spec:
+  schedule: '* * * * *'
+  suspend: true
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 1
+  jobTemplate:
+    metadata:
+      labels:
+        lab-job: 'true'
+    spec:
+      activeDeadlineSeconds: 50
+      backoffLimit: 0
+      template:
+        spec:
+          restartPolicy: Never
+          containers:
+            - name: traffic
+              image: curlimages/curl:8.12.1
+              command: [sh, -c]
+              args:
+                - 'for attempt in 1 2 3 4 5; do curl --silent --max-time 3 --output /dev/null -X POST http://payment-api/lab/payments; done'

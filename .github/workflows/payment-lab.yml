@@ -1,0 +1,67 @@
+name: ReliBank payment lab - deploy, reset or pause
+on:
+  workflow_dispatch:
+    inputs:
+      operation:
+        description: Deploy selected branch; reset to saved baseline; pause/resume schedules; trigger bounded failure
+        type: choice
+        default: deploy
+        options: [deploy, reset, pause, resume, trigger]
+      baseline_image:
+        description: Reset only - full saved image@sha256:digest from the baseline deployment summary
+        type: string
+      expected_status:
+        description: Slow payment expected result - baseline 504, fixed 200
+        type: choice
+        default: '504'
+        options: ['504', '200']
+      enable_monitoring:
+        description: Enable New Relic only after separately configuring new lab credentials
+        type: boolean
+        default: false
+permissions:
+  contents: read
+  id-token: write
+concurrency:
+  group: relibank-payment-lab
+  cancel-in-progress: false
+jobs:
+  operate:
+    runs-on: ubuntu-latest
+    environment: lab-application
+    timeout-minutes: 30
+    env:
+      TFSTATE_STORAGE_ACCOUNT: ${{ vars.TFSTATE_STORAGE_ACCOUNT }}
+      TFSTATE_CONTAINER: ${{ vars.TFSTATE_CONTAINER }}
+      TFSTATE_KEY: ${{ vars.TFSTATE_KEY }}
+      OPERATION: ${{ inputs.operation }}
+      BASELINE_IMAGE: ${{ inputs.baseline_image }}
+      EXPECTED_STATUS: ${{ inputs.expected_status }}
+      MONITORING_ENABLED: ${{ inputs.enable_monitoring && 'true' || 'false' }}
+      NEW_RELIC_LICENSE_KEY: ${{ inputs.enable_monitoring && secrets.LAB_NR_LICENSE_KEY || '' }}
+      NEW_RELIC_USER_API_KEY: ${{ inputs.enable_monitoring && secrets.LAB_NR_USER_API_KEY || '' }}
+      NEW_RELIC_ENTITY_GUID: ${{ inputs.enable_monitoring && vars.LAB_PAYMENT_ENTITY_GUID || '' }}
+      NEW_RELIC_GRAPHQL_URL: ${{ vars.NEW_RELIC_GRAPHQL_URL }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install -r demo_lab/requirements.txt
+      - run: python -m unittest demo_lab.test_configuration -v
+      - run: python -m unittest demo_lab.test_payment_lab.PaymentContract -v
+      - run: python -m unittest demo_lab.test_api -v
+      - name: Require regression test when deploying a fix
+        if: inputs.operation == 'deploy' && inputs.expected_status == '200'
+        run: python -m unittest demo_lab.test_payment_lab.FixExercise -v
+      - uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      - uses: azure/setup-kubectl@v4
+      - uses: azure/use-kubelogin@v1
+        with:
+          kubelogin-version: v0.2.10
+      - name: Discover active cluster and operate under the shared lock
+        run: bash demo_lab/lab-lock.sh bash demo_lab/operate.sh
