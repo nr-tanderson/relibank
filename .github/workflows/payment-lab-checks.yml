@@ -1,0 +1,24 @@
+name: Payment lab regression checks
+on:
+  pull_request:
+    paths:
+      - bill_pay/payment_lab*.py
+      - demo_lab/**
+      - .github/workflows/payment-lab*.yml
+permissions:
+  contents: read
+jobs:
+  regression:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install -r demo_lab/requirements.txt
+      - run: python -m unittest demo_lab.test_configuration -v
+      - run: python -m unittest demo_lab.test_payment_lab.PaymentContract -v
+      - run: python -m unittest demo_lab.test_api -v
+      - name: Slow payment regression for fix branches
+        if: startsWith(github.head_ref, 'fix/')
+        run: python -m unittest demo_lab.test_payment_lab.FixExercise -v

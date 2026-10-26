@@ -9,6 +9,7 @@ act-secrets.env
 __pycache__/
 *.pyc
 .venv/
+.venv-lab/
 .venv-relibank-tests/
 .venv-relibank-tests
 env/

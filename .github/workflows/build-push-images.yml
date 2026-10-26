@@ -100,7 +100,7 @@ jobs:
   # ---------------------------------------------------------------------------
   build-and-push-image:
     name: ${{ matrix.images.image_name }} - Build and Push
-    if: ${{ inputs.skip_build != true }}
+    if: ${{ inputs.skip_build != true && (github.repository == 'newrelic/relibank' || vars.ENABLE_UPSTREAM_AUTOMATION == 'true') }}
     environment: ${{ inputs.environment || 'events' }}
     strategy:
       fail-fast: false
