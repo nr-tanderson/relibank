@@ -1,9 +1,9 @@
 name: Relibank Test Suite
 
 on:
-  schedule:
-    # Run daily at 5 AM PST (6pm UTC)
-    - cron: '0 13 * * *'
+  # schedule:  # Disable the daily cron job
+  #   # Run daily at 5 AM PST (6pm UTC)
+  #   # - cron: '0 13 * * *'
   workflow_dispatch:  # Allow manual trigger
     inputs:
       target_environment:

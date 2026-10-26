@@ -28,10 +28,6 @@ on:
     #      - "15"
     #      - "30"
 
-  schedule:
-  # Run every 4 hours
-  - cron: "0 */4 * * *"
-
 permissions:
   contents: read
 

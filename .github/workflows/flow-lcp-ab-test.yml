@@ -1,9 +1,7 @@
 name: Flow - LCP A/B Test Scenario
 
 on:
-  schedule:
-    # Run every 6 hours
-    - cron: '0 */6 * * *'
+  # Scheduled scenario automation disabled; manual dispatch remains available.
   workflow_dispatch:
     inputs:
       environment:
