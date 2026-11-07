@@ -89,7 +89,7 @@ fi
 kubectl kustomize k8s/overlays/lab --load-restrictor LoadRestrictionsNone > "$manifest"
 RESOURCES_FILE="$resources" JOB_DIR="$job_dir" REGISTRY_URL="$registry_url" IMAGE_TAG="$IMAGE_TAG" ruby demo_lab/render-full-app.rb "$manifest"
 
-kubectl apply -f "$manifest"
+kubectl apply -f "$resources"
 for workload in deployment/accounts-db statefulset/mssql deployment/zookeeper deployment/kafka; do
   kubectl rollout status "$workload" -n relibank --timeout=15m
 done
