@@ -12,6 +12,10 @@ on:
         description: Type UNINSTALL-RELIBANK-LAB to delete the namespace and demo data
         type: string
         default: ''
+      image_tag:
+        description: Optional existing 40-character app image commit SHA; defaults to this workflow commit
+        type: string
+        default: ''
 permissions:
   contents: read
   id-token: write
@@ -31,7 +35,7 @@ jobs:
       REGISTRY_NAME: ${{ vars.LAB_ACR_NAME }}
       OPERATION: ${{ inputs.operation }}
       CONFIRMATION: ${{ inputs.confirmation }}
-      IMAGE_TAG: ${{ github.sha }}
+      IMAGE_TAG: ${{ inputs.image_tag || github.sha }}
     steps:
       - uses: actions/checkout@v4
       - uses: azure/login@v2

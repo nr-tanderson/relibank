@@ -7,6 +7,7 @@ set -euo pipefail
 : "${AZURE_SUBSCRIPTION_ID:?}"
 : "${REGISTRY_NAME:?}"
 : "${IMAGE_TAG:?}"
+[[ "$IMAGE_TAG" =~ ^[a-f0-9]{40}$ ]]
 
 connection=$(mktemp)
 manifest=$(mktemp)
