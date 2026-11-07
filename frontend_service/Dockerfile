@@ -26,7 +26,14 @@ ARG NEW_RELIC_TRUST_KEY
 ENV NEW_RELIC_TRUST_KEY=$NEW_RELIC_TRUST_KEY
 
 RUN chmod +x generate_nrjs_file.sh
-RUN ./generate_nrjs_file.sh
+RUN if [ -n "$NEW_RELIC_BROWSER_APPLICATION_ID" ] && \
+			 [ -n "$NEW_RELIC_BROWSER_LICENSE_KEY" ] && \
+			 [ -n "$NEW_RELIC_ACCOUNT_ID" ] && \
+			 [ -n "$NEW_RELIC_TRUST_KEY" ]; then \
+			./generate_nrjs_file.sh; \
+		else \
+			echo "New Relic browser instrumentation disabled"; \
+		fi
 
 ENV HOST=0.0.0.0
 ENV PORT=3000

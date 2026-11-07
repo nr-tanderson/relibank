@@ -1,0 +1,78 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: relibank-edge-nginx
+data:
+  default.conf: |
+    server {
+      listen 8080;
+      location = /healthz { return 200 'ok'; }
+      location /auth-service/ { proxy_pass http://auth-service:5002; }
+      location /accounts-service/ { proxy_pass http://accounts-service:5002; }
+      location /support-service/ { proxy_pass http://support-service:5003; }
+      location /bill-pay-service/ { proxy_pass http://bill-pay-service:5000; }
+      location /transaction-service/ { proxy_pass http://transaction-service:5001; }
+      location /risk-assessment-service/ { proxy_pass http://risk-assessment-service:5001; }
+      location / { proxy_pass http://frontend-service:3000; }
+    }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: relibank-edge
+  labels:
+    app: relibank-edge
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: relibank-edge
+  template:
+    metadata:
+      labels:
+        app: relibank-edge
+    spec:
+      containers:
+        - name: nginx
+          image: nginx:1.29-alpine
+          ports:
+            - name: http
+              containerPort: 8080
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 250m
+              memory: 128Mi
+          volumeMounts:
+            - name: nginx-config
+              mountPath: /etc/nginx/conf.d
+              readOnly: true
+      volumes:
+        - name: nginx-config
+          configMap:
+            name: relibank-edge-nginx
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: relibank-edge
+  annotations:
+    service.beta.kubernetes.io/azure-additional-resource-tags: OWNER=TANDERSON,PROJECT=nr-azure-demo-opentelemetry,MANAGED_BY=Terraform
+spec:
+  type: LoadBalancer
+  selector:
+    app: relibank-edge
+  ports:
+    - name: http
+      port: 80
+      targetPort: 8080
