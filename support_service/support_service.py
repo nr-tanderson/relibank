@@ -561,15 +561,16 @@ async def lifespan(app: FastAPI):
     """
     global client, is_ready, azure_client
 
-    # Azure OpenAI initialization (required for LangGraph agents)
+    # Keep basic support available in the lab when paid AI credentials are absent.
     azure_endpoint = AZURE_OPENAI_ENDPOINT
     azure_api_key = AZURE_OPENAI_API_KEY
 
     if not azure_endpoint or not azure_api_key:
-        logger.error("AZURE_OPENAI_ENDPOINT or AZURE_OPENAI_API_KEY not set")
-        raise RuntimeError("Azure OpenAI credentials are required for startup.")
-
-    try:
+        azure_client = None
+        is_ready = True
+        logger.info("Azure OpenAI is not configured; support is running in demo mode.")
+    else:
+      try:
         azure_client = AzureOpenAI(
             api_key=azure_api_key,
             api_version="2024-05-01-preview",
@@ -577,7 +578,7 @@ async def lifespan(app: FastAPI):
         )
         is_ready = True
         logger.info("Azure OpenAI client initialized for LangGraph agents")
-    except Exception as e:
+      except Exception as e:
         logger.critical(f"Failed to initialize Azure OpenAI client: {e}")
         is_ready = False
         azure_client = None
@@ -612,6 +613,11 @@ async def chat_with_model(prompt: str) -> ChatResponse:
     Legacy endpoint - now routes to Azure LangGraph agents.
     For new integrations, use /support-service/assistant/chat instead.
     """
+    if not AZURE_OPENAI_ENDPOINT or not AZURE_OPENAI_API_KEY:
+        return ChatResponse(
+            response="ReliBank demo support is online. AI responses are disabled in this lab; please try again after the backend issue is resolved."
+        )
+
     if not is_ready:
         raise HTTPException(
             status_code=503,
@@ -643,9 +649,10 @@ async def assistant_chat(request: AssistantChatRequest) -> AssistantChatResponse
     Chat with LangGraph multi-agent workflow (agent-to-agent capability)
     """
     if not AZURE_OPENAI_ENDPOINT or not AZURE_OPENAI_API_KEY:
-        raise HTTPException(
-            status_code=503,
-            detail="Azure OpenAI not configured. Check AZURE_OPENAI_ENDPOINT, AZURE_OPENAI_API_KEY."
+        return AssistantChatResponse(
+            response="ReliBank demo support is online. AI responses are disabled in this lab.",
+            thread_id=request.thread_id or "demo-support-session",
+            metadata={"demo_mode": True, "tokens_used": 0, "cost": 0},
         )
 
     try:
