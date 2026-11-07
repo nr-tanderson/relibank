@@ -1,0 +1,71 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: relibank
+
+resources:
+  - ../../base/namespaces/relibank-namespace.yaml
+  - ../../base/configs/infrastructure-config.yaml
+  - ../../base/storage/persistentvolumeclaim.yaml
+  - ../../base/databases/accounts-db-deployment.yaml
+  - ../../base/databases/mssql-deployment.yaml
+  - ../../base/jobs/mssql-init-deployment.yaml
+  - ../../base/jobs/postgres-init-deployment.yaml
+  - ../../base/infrastructure/zookeeper-deployment.yaml
+  - ../../base/infrastructure/kafka-deployment.yaml
+  - ../../base/services/frontend-service-deployment.yaml
+  - ../../base/services/accounts-service-deployment.yaml
+  - ../../base/services/auth-service-deployment.yaml
+  - ../../base/services/bill-pay-service-deployment.yaml
+  - ../../base/services/notifications-service-deployment.yaml
+  - ../../base/services/scheduler-service-deployment.yaml
+  - ../../base/services/transaction-service-deployment.yaml
+  - ../../base/services/support-service-deployment.yaml
+  - ../../base/services/risk-assessment-service-deployment.yaml
+  - edge-proxy.yaml
+
+images:
+  - name: frontend-service
+    newName: ${REGISTRY_URL}/frontend-service
+    newTag: ${IMAGE_TAG}
+  - name: accounts-service
+    newName: ${REGISTRY_URL}/accounts-service
+    newTag: ${IMAGE_TAG}
+  - name: auth-service
+    newName: ${REGISTRY_URL}/auth-service
+    newTag: ${IMAGE_TAG}
+  - name: transaction-service
+    newName: ${REGISTRY_URL}/transaction-service
+    newTag: ${IMAGE_TAG}
+  - name: bill-pay-service
+    newName: ${REGISTRY_URL}/bill-pay-service
+    newTag: ${IMAGE_TAG}
+  - name: notifications-service
+    newName: ${REGISTRY_URL}/notifications-service
+    newTag: ${IMAGE_TAG}
+  - name: scheduler-service
+    newName: ${REGISTRY_URL}/scheduler-service
+    newTag: ${IMAGE_TAG}
+  - name: support-service
+    newName: ${REGISTRY_URL}/support-service
+    newTag: ${IMAGE_TAG}
+  - name: risk-assessment-service
+    newName: ${REGISTRY_URL}/risk-assessment-service
+    newTag: ${IMAGE_TAG}
+  - name: postgres-custom
+    newName: ${REGISTRY_URL}/postgres-custom
+    newTag: ${IMAGE_TAG}
+  - name: mssql-custom
+    newName: ${REGISTRY_URL}/mssql-custom
+    newTag: ${IMAGE_TAG}
+  - name: kafka-with-monitoring
+    newName: ${REGISTRY_URL}/kafka-with-monitoring
+    newTag: ${IMAGE_TAG}
+
+patches:
+  - path: mssql-internal.yaml
+    target:
+      group: ''
+      version: v1
+      kind: Service
+      name: mssql-0

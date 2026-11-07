@@ -40,7 +40,11 @@ const generateNrScript = () => {
 };
 
 // Pre-compute the NR script once at module load
-const COMPUTED_NR_SCRIPT = generateNrScript();
+const COMPUTED_NR_SCRIPT = Object.values(NEW_RELIC_CONFIG).every(
+  (value) => typeof value === 'string' && value.trim() !== ''
+)
+  ? generateNrScript()
+  : '';
 
 // Helper function to map route paths to New Relic page view names
 const getPageNameFromPath = (pathname: string): string => {

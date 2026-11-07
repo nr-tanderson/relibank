@@ -1,0 +1,48 @@
+name: ReliBank full app lab
+
+on:
+  workflow_dispatch:
+    inputs:
+      operation:
+        description: Deploy the full UI/API stack or remove its namespace
+        type: choice
+        default: deploy
+        options: [deploy, uninstall]
+      confirmation:
+        description: Type UNINSTALL-RELIBANK-LAB to delete the namespace and demo data
+        type: string
+        default: ''
+permissions:
+  contents: read
+  id-token: write
+concurrency:
+  group: relibank-full-app-lab
+  cancel-in-progress: false
+jobs:
+  operate:
+    runs-on: ubuntu-latest
+    environment: lab-application
+    timeout-minutes: 90
+    env:
+      TFSTATE_STORAGE_ACCOUNT: ${{ vars.TFSTATE_STORAGE_ACCOUNT }}
+      TFSTATE_CONTAINER: ${{ vars.TFSTATE_CONTAINER }}
+      TFSTATE_KEY: ${{ vars.TFSTATE_KEY }}
+      REGISTRY_NAME: ${{ vars.LAB_ACR_NAME }}
+      OPERATION: ${{ inputs.operation }}
+      CONFIRMATION: ${{ inputs.confirmation }}
+      IMAGE_TAG: ${{ github.sha }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      - uses: azure/setup-kubectl@v4
+      - uses: azure/use-kubelogin@v1
+        with:
+          kubelogin-version: v0.2.10
+      - uses: docker/setup-buildx-action@v3
+        if: inputs.operation == 'deploy'
+      - name: Deploy full ReliBank app or uninstall it under the shared lock
+        run: bash demo_lab/lab-lock.sh bash demo_lab/full-app.sh
