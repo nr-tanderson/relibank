@@ -10,9 +10,7 @@ set -euo pipefail
 
 connection=$(mktemp)
 manifest=$(mktemp)
-resources=$(mktemp)
-job_dir=$(mktemp -d)
-trap 'rm -f "$connection" "$manifest" "$resources"; rm -rf "$job_dir"' EXIT
+trap 'rm -f "$connection" "$manifest"' EXIT
 
 az storage blob download \
   --account-name "$TFSTATE_STORAGE_ACCOUNT" \
@@ -87,20 +85,14 @@ if ! kubectl get secret database-credentials -n relibank >/dev/null 2>&1; then
 fi
 
 kubectl kustomize k8s/overlays/lab --load-restrictor LoadRestrictionsNone > "$manifest"
-RESOURCES_FILE="$resources" JOB_DIR="$job_dir" REGISTRY_URL="$registry_url" IMAGE_TAG="$IMAGE_TAG" ruby demo_lab/render-full-app.rb "$manifest"
+REGISTRY_URL="$registry_url" IMAGE_TAG="$IMAGE_TAG" ruby demo_lab/render-full-app.rb "$manifest"
 
-kubectl apply -f "$resources"
+kubectl apply -f "$manifest"
 for workload in deployment/accounts-db statefulset/mssql deployment/zookeeper deployment/kafka; do
   kubectl rollout status "$workload" -n relibank --timeout=15m
 done
 
 for job in postgres-init mssql-init; do
-  if ! kubectl get job "$job" -n relibank >/dev/null 2>&1; then
-    kubectl create -f "$job_dir/$job.yaml"
-  elif ! kubectl get job "$job" -n relibank -o json | jq -e '.status.conditions[]? | select(.type == "Complete" and .status == "True")' >/dev/null; then
-    printf 'Job %s exists but has not completed; inspect it before retrying to avoid reseeding data.\n' "$job" >&2
-    exit 1
-  fi
   kubectl wait --for=condition=complete "job/$job" -n relibank --timeout=20m
 done
 
