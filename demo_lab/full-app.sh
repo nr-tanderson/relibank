@@ -88,6 +88,11 @@ kubectl kustomize k8s/overlays/lab --load-restrictor LoadRestrictionsNone > "$ma
 REGISTRY_URL="$registry_url" IMAGE_TAG="$IMAGE_TAG" ruby demo_lab/render-full-app.rb "$manifest"
 
 kubectl apply -f "$manifest"
+expected_mssql_image="$registry_url/mssql-custom:$IMAGE_TAG"
+current_mssql_image=$(kubectl get pod mssql-0 -n relibank -o jsonpath='{.spec.containers[0].image}' 2>/dev/null || true)
+if [[ -n "$current_mssql_image" && "$current_mssql_image" != "$expected_mssql_image" ]]; then
+  kubectl delete pod mssql-0 -n relibank --wait=true --timeout=5m
+fi
 for workload in deployment/accounts-db statefulset/mssql deployment/zookeeper deployment/kafka; do
   kubectl rollout status "$workload" -n relibank --timeout=15m
 done
